@@ -3,14 +3,24 @@ const canvas = document.getElementById('canvas');
 const captureBtn = document.getElementById('capture');
 const whatsappInput = document.getElementById('whatsappNumber');
 
-navigator.mediaDevices.getUserMedia({ video: true })
+navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: { exact: "environment" } // מבקש את המצלמה האחורית
+    }
+  })
   .then(stream => {
     video.srcObject = stream;
   })
   .catch(err => {
-    alert('בעיה בגישה למצלמה');
+    alert('לא הצלחנו להפעיל את המצלמה האחורית, מנסים מצלמה רגילה...');
     console.error(err);
+  
+    // fallback למצלמה רגילה
+    navigator.mediaDevices.getUserMedia({ video: true }).then(fallbackStream => {
+      video.srcObject = fallbackStream;
+    });
   });
+  
 
 captureBtn.onclick = () => {
   const number = whatsappInput.value.trim();

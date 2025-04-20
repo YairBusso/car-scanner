@@ -27,6 +27,7 @@ captureBtn.onclick = () => {
   Tesseract.recognize(canvas, 'eng').then(result => {
     const plateNumber = result.data.text.replace(/\s/g, '').replace(/[^0-9]/g, '');
     const message = `מספר רכב לבדיקה: ${plateNumber}`;
+    alert(`המספר רבכ שנקלט ${plateNumber}`);
     const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
   });

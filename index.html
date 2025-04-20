@@ -1,20 +1,43 @@
 <!DOCTYPE html>
-<html lang="he">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>סריקת רכב</title>
+  <title>סריקת מספר רכב</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>סרוק ושלח מספר רכב</h1>
+  <div class="container">
+    <h1>סרוק ושלח מספר רכב</h1>
 
-  <label for="whatsappNumber">המספר של מי שאתה רוצה לשלוח לו</label><br/>
-  <input type="text" id="whatsappNumber" placeholder="למשל 972501234567" /><br/>
+    <div class="input-group">
+      <label for="whatsappNumber">מספר טלפון לשליחה בוואטסאפ</label>
+      <input type="text" id="whatsappNumber" placeholder="למשל 972501234567" />
+    </div>
 
-  <video id="video" autoplay playsinline></video>
-  <button id="capture">סרוק ושלח</button>
-  <canvas id="canvas" style="display: none;"></canvas>
+    <div class="video-container">
+      <video id="video" autoplay playsinline></video>
+      <div id="plate-overlay">
+        <div id="plate-frame"></div>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="switch-camera" class="secondary-btn">החלף מצלמה</button>
+      <button id="capture" class="primary-btn">סרוק מספר רכב</button>
+    </div>
+
+    <canvas id="canvas" style="display: none;"></canvas>
+    <div id="loading-indicator" class="loading-indicator">מזהה מספר רכב...</div>
+    
+    <div id="result-container" class="result-container">
+      <p>מספר רכב שזוהה: <span id="detected-plate"></span></p>
+      <div class="result-actions">
+        <button id="edit-plate" class="secondary-btn">ערוך</button>
+        <button id="send-plate" class="primary-btn">שלח בוואטסאפ</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.4/dist/tesseract.min.js"></script>
   <script src="script.js"></script>

@@ -92,11 +92,37 @@
     transform: translate(-50%, -50%);
     border: 3px solid var(--primary-color);
     border-radius: 5px;
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.3);
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.5);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(37, 211, 102, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+    }
+  }
+  
+  .scan-info {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 8px;
+    font-size: 14px;
+    border-radius: 0 0 10px 10px;
   }
   
   .buttons {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     gap: 10px;
     margin-bottom: 20px;
   }
@@ -110,6 +136,7 @@
     cursor: pointer;
     transition: background-color 0.3s, transform 0.1s;
     flex: 1;
+    max-width: 200px;
   }
   
   .primary-btn {
@@ -175,10 +202,6 @@
   }
   
   @media screen and (max-width: 480px) {
-    .buttons {
-      flex-direction: column;
-    }
-    
     #plate-frame {
       height: 10%;
     }

@@ -1,7 +1,6 @@
 // אלמנטים בדף
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
-const captureBtn = document.getElementById('capture');
 const switchCameraBtn = document.getElementById('switch-camera');
 const whatsappInput = document.getElementById('whatsappNumber');
 const loadingIndicator = document.getElementById('loading-indicator');
@@ -14,6 +13,8 @@ const sendPlateBtn = document.getElementById('send-plate');
 let currentStream = null;
 let facingMode = "environment"; // מתחילים עם המצלמה האחורית
 let detectedPlateNumber = "";
+let isScanning = false; // דגל לציון אם סריקה מתבצעת כרגע
+let scanInterval = null; // משתנה לשמירת ה-interval של הסריקה האוטומטית
 
 // אתחול עבור Tesseract
 const initializeTesseract = async () => {
@@ -23,6 +24,8 @@ const initializeTesseract = async () => {
       gzip: false
     });
     console.log('Tesseract טעינת מנוע הושלמה');
+    // מתחילים סריקה אוטומטית לאחר אתחול המנוע
+    startAutoScan();
   } catch (error) {
     console.error('טעות באתחול Tesseract:', error);
   }
@@ -51,6 +54,11 @@ const initCamera = async () => {
       canvas.width = videoWidth;
       canvas.height = videoHeight;
       console.log(`מצלמה אותחלה: ${videoWidth}x${videoHeight}`);
+      
+      // הפעלת סריקה אוטומטית מחדש אם הייתה כבר פעילה
+      if (isScanning) {
+        startAutoScan();
+      }
     };
     
   } catch (err) {
@@ -104,7 +112,17 @@ const cropPlateRegion = () => {
   const plateY = (videoHeight - plateRegionHeight) / 2;
   
   // ציור התמונה המלאה
-  ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+  // בדיקה אם צריך לבצע היפוך אופקי של התמונה (תלוי באיזה מצלמה משתמשים)
+  if (facingMode === "user") {
+    // משתמשים במצלמה קדמית - צריך להפוך את התמונה בחזרה למצב הנכון
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -videoWidth, 0, videoWidth, videoHeight);
+    ctx.restore();
+  } else {
+    // משתמשים במצלמה אחורית - לא צריך היפוך
+    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+  }
   
   // חיתוך אזור לוחית הרישוי
   const plateRegion = ctx.getImageData(plateX, plateY, plateRegionWidth, plateRegionHeight);
@@ -118,10 +136,37 @@ const cropPlateRegion = () => {
   return canvas;
 };
 
+// פונקציה לניתוח תוצאת הזיהוי ותיקון הבעיות
+const analyzePlateNumber = (rawText) => {
+  // הסרת רווחים וזניחת תווים שאינם מספרים
+  let plateNumber = rawText.replace(/\s/g, '').replace(/[^0-9]/g, '');
+  
+  // בדיקה אם המספר "הפוך" - במקרה כזה נהפוך אותו
+  if (plateNumber.length >= 7) {
+    // אם יש יותר מ-8 ספרות, כנראה שחלק מהמספרים שגויים
+    if (plateNumber.length > 8) {
+      plateNumber = plateNumber.substring(0, 8);
+    }
+    return plateNumber;
+  }
+  
+  // בדיקה אם יש מספרים שהתבלבלו בזיהוי - החלפות נפוצות
+  plateNumber = plateNumber
+    .replace(/O/g, '0')    // O -> 0
+    .replace(/I/g, '1')    // I -> 1
+    .replace(/Z/g, '2')    // Z -> 2
+    .replace(/B/g, '8')    // B -> 8
+    .replace(/S/g, '5');   // S -> 5
+  
+  return plateNumber;
+};
+
 // פונקציה לזיהוי לוחית רישוי
 const detectLicensePlate = async () => {
   try {
-    showLoadingIndicator(true);
+    if (isScanning) {
+      showLoadingIndicator(true);
+    }
     
     // חיתוך אזור הלוחית
     const plateCanvas = cropPlateRegion();
@@ -129,14 +174,14 @@ const detectLicensePlate = async () => {
     // שימוש ב-Tesseract לזיהוי מספרים
     const result = await Tesseract.recognize(plateCanvas, {
       lang: 'eng', // אנגלית עובדת טוב יותר עם מספרים
-      tessedit_char_whitelist: '0123456789', // רק מספרים
+      tessedit_char_whitelist: '0123456789OIZBS', // מספרים + תווים שלפעמים מזוהים בטעות
       tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE // הנחה שהטקסט בשורה אחת
     });
     
-    // עיבוד התוצאה
-    let plateNumber = result.data.text.replace(/\s/g, '').replace(/[^0-9]/g, '');
+    // ניתוח התוצאה וטיפול במספרים הפוכים
+    let plateNumber = analyzePlateNumber(result.data.text);
     console.log('תוצאת זיהוי גולמית:', result.data.text);
-    console.log('מספר רכב שזוהה:', plateNumber);
+    console.log('מספר רכב מעובד:', plateNumber);
     
     // בדיקה אם המספר שזוהה באורך הגיוני ללוחית ישראלית (7-8 ספרות)
     if (plateNumber.length < 7 || plateNumber.length > 8) {
@@ -145,18 +190,21 @@ const detectLicensePlate = async () => {
       // ניסיון נוסף עם הגדרות אחרות
       const secondAttempt = await Tesseract.recognize(plateCanvas, {
         lang: 'eng',
-        tessedit_char_whitelist: '0123456789',
+        tessedit_char_whitelist: '0123456789OIZBS',
         tessedit_pageseg_mode: Tesseract.PSM.SINGLE_WORD // הגדרה אחרת לסגמנטצית טקסט
       });
       
-      plateNumber = secondAttempt.data.text.replace(/\s/g, '').replace(/[^0-9]/g, '');
+      plateNumber = analyzePlateNumber(secondAttempt.data.text);
       console.log('תוצאת ניסיון שני:', plateNumber);
     }
     
     showLoadingIndicator(false);
     
-    // החזרת המספר
-    return plateNumber;
+    // החזרת המספר רק אם זוהה מספר באורך תקין
+    if (plateNumber.length >= 7 && plateNumber.length <= 8) {
+      return plateNumber;
+    }
+    return '';
   } catch (error) {
     console.error('שגיאה בזיהוי מספר הרכב:', error);
     showLoadingIndicator(false);
@@ -164,9 +212,51 @@ const detectLicensePlate = async () => {
   }
 };
 
+// פונקציה להפעלת סריקה אוטומטית
+const startAutoScan = () => {
+  // סגירת כל סריקה קודמת אם קיימת
+  stopAutoScan();
+  
+  isScanning = true;
+  console.log('מתחיל סריקה אוטומטית...');
+  
+  // הפעלת סריקה כל 2 שניות
+  scanInterval = setInterval(async () => {
+    if (!isScanning) {
+      return;
+    }
+    
+    try {
+      const plateNumber = await detectLicensePlate();
+      
+      // אם זוהה מספר תקין, עוצרים את הסריקה האוטומטית ומציגים את התוצאה
+      if (plateNumber && plateNumber.length >= 7) {
+        stopAutoScan();
+        console.log('נמצא מספר רכב תקין!', plateNumber);
+        showResult(plateNumber);
+      }
+    } catch (error) {
+      console.error('שגיאה בסריקה אוטומטית:', error);
+    }
+  }, 2000); // בדיקה כל 2 שניות
+};
+
+// פונקציה לעצירת הסריקה האוטומטית
+const stopAutoScan = () => {
+  if (scanInterval) {
+    clearInterval(scanInterval);
+    scanInterval = null;
+  }
+  isScanning = false;
+  showLoadingIndicator(false);
+};
+
 // פונקציה להצגת מחוון טעינה
 const showLoadingIndicator = (show) => {
   loadingIndicator.style.display = show ? 'block' : 'none';
+  if (show) {
+    loadingIndicator.textContent = 'מחפש לוחית רישוי...';
+  }
 };
 
 // פונקציה להצגת תוצאת הזיהוי
@@ -174,6 +264,14 @@ const showResult = (plateNumber) => {
   detectedPlateNumber = plateNumber;
   detectedPlateElement.textContent = plateNumber;
   resultContainer.style.display = 'block';
+  
+  // השמעת צליל התראה כשנמצא מספר רכב
+  try {
+    const beep = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU");
+    beep.play();
+  } catch (e) {
+    console.log('לא ניתן להשמיע צליל התראה');
+  }
 };
 
 // פונקציה לשליחת מספר הרכב בוואטסאפ
@@ -192,26 +290,6 @@ const sendToWhatsapp = (plateNumber) => {
 
 // אירועי לחיצה
 
-// לחיצה על כפתור הסריקה
-captureBtn.addEventListener('click', async () => {
-  try {
-    const plateNumber = await detectLicensePlate();
-    if (plateNumber) {
-      showResult(plateNumber);
-    } else {
-      alert('לא זוהה מספר רכב. נסה שוב או עדכן את המספר ידנית.');
-      // הצגת דיאלוג להזנה ידנית
-      const manualNumber = prompt('הזן מספר רכב ידנית:');
-      if (manualNumber && manualNumber.trim() !== '') {
-        showResult(manualNumber);
-      }
-    }
-  } catch (error) {
-    console.error('שגיאה בסריקה:', error);
-    alert('אירעה שגיאה בזיהוי. נסה שוב.');
-  }
-});
-
 // לחיצה על כפתור עריכת מספר לוחית
 editPlateBtn.addEventListener('click', () => {
   const editedPlate = prompt('ערוך את מספר הרכב:', detectedPlateNumber);
@@ -224,11 +302,14 @@ editPlateBtn.addEventListener('click', () => {
 sendPlateBtn.addEventListener('click', () => {
   if (sendToWhatsapp(detectedPlateNumber)) {
     resultContainer.style.display = 'none';
+    // מפעילים מחדש את הסריקה האוטומטית אחרי השליחה
+    startAutoScan();
   }
 });
 
 // לחיצה על כפתור החלפת מצלמה
 switchCameraBtn.addEventListener('click', () => {
+  stopAutoScan(); // עוצרים סריקה בזמן החלפת מצלמה
   facingMode = facingMode === "environment" ? "user" : "environment";
   initCamera();
 });

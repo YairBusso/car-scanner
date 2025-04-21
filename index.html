@@ -8,7 +8,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>סרוק ושלח מספר רכב</h1>
+    <h1>סריקת מספר רכב אוטומטית</h1>
 
     <div class="input-group">
       <label for="whatsappNumber">מספר טלפון לשליחה בוואטסאפ</label>
@@ -20,15 +20,15 @@
       <div id="plate-overlay">
         <div id="plate-frame"></div>
       </div>
+      <div class="scan-info">מקם את לוחית הרישוי במסגרת הירוקה</div>
     </div>
 
     <div class="buttons">
       <button id="switch-camera" class="secondary-btn">החלף מצלמה</button>
-      <button id="capture" class="primary-btn">סרוק מספר רכב</button>
     </div>
 
     <canvas id="canvas" style="display: none;"></canvas>
-    <div id="loading-indicator" class="loading-indicator">מזהה מספר רכב...</div>
+    <div id="loading-indicator" class="loading-indicator">מחפש לוחית רישוי...</div>
     
     <div id="result-container" class="result-container">
       <p>מספר רכב שזוהה: <span id="detected-plate"></span></p>
